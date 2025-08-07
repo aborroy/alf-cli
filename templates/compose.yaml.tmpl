@@ -1,5 +1,6 @@
 services:
 
+{{- if eq .Database "postgres" }}
   postgres:
     image: postgres:${POSTGRES_TAG}
     environment:
@@ -16,13 +17,45 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '{{ printf "%.2f" (index .Resources "postgres").Limits.CPU }}'
-          memory: '{{ formatMem (index .Resources "postgres").Limits.MiB }}'
+          cpus: '{{ printf "%.2f" (index .Resources "database").Limits.CPU }}'
+          memory: '{{ formatMem (index .Resources "database").Limits.MiB }}'
         reservations:
-          cpus: '{{ printf "%.2f" (index .Resources "postgres").Reservations.CPU }}'
-          memory: '{{ formatMem (index .Resources "postgres").Reservations.MiB }}'
+          cpus: '{{ printf "%.2f" (index .Resources "database").Reservations.CPU }}'
+          memory: '{{ formatMem (index .Resources "database").Reservations.MiB }}'
     volumes:
       - postgres-data:/var/lib/postgresql/data
+{{- end }}
+{{- if eq .Database "mariadb" }}
+  mariadb:
+    image: mariadb:${MARIADB_TAG}
+    environment:
+        - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
+        - MYSQL_DATABASE=alfresco
+        - MYSQL_USER=alfresco
+        - MYSQL_PASSWORD=${DB_PASSWORD}
+    command: "
+        --character-set-server=utf8
+        --collation-server=utf8_bin
+        --lower_case_table_names=1
+        --max_connections=200
+        --innodb-flush-method=O_DIRECT
+        --wait_timeout=28800"
+    healthcheck:
+      test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '{{ printf "%.2f" (index .Resources "database").Limits.CPU }}'
+          memory: '{{ formatMem (index .Resources "database").Limits.MiB }}'
+        reservations:
+          cpus: '{{ printf "%.2f" (index .Resources "database").Reservations.CPU }}'
+          memory: '{{ formatMem (index .Resources "database").Reservations.MiB }}'
+    volumes:
+        - mariadb-data:/var/lib/mysql
+{{- end }}
 
   activemq:
     image: docker.io/alfresco/alfresco-activemq:${ACTIVEMQ_TAG}
@@ -91,8 +124,15 @@ services:
         -Dshare.host=${SERVER_NAME}
         -Dshare.port={{ .Port }}
         -Dalfresco_user_store.adminpassword={{ .AdminPassword }}
+        -Ddb.password=${DB_PASSWORD}
+{{- if eq .Database "postgres" }}
         -Ddb.driver=org.postgresql.Driver
         -Ddb.url=jdbc:postgresql://postgres:5432/alfresco
+{{- end }}        
+{{- if eq .Database "mariadb" }}
+        -Ddb.driver=org.mariadb.jdbc.Driver
+        -Ddb.url=jdbc:mysql://mariadb/alfresco?useUnicode=yes\&characterEncoding=UTF-8
+{{- end }}
         -Dsolr.host=solr6
         -Dsolr.secureComms=secret
         -Dsolr.sharedSecret=${SECURE_COMMS_SECRET}
@@ -126,7 +166,12 @@ services:
           cpus: '{{ printf "%.2f" (index .Resources "alfresco").Reservations.CPU }}'
           memory: '{{ formatMem (index .Resources "alfresco").Reservations.MiB }}'
     depends_on: 
+{{- if eq .Database "postgres" }}
       postgres:
+{{- end }}
+{{- if eq .Database "mariadb" }}
+      mariadb:
+{{- end }}
         condition: service_healthy
       activemq:
         condition: service_healthy
@@ -134,6 +179,9 @@ services:
         condition: service_healthy
     volumes:
       - alf-repo-data:/usr/local/tomcat/alf_data
+{{- if eq .Database "mariadb" }}
+      - ./libs/mariadb-java-client-2.7.4.jar:/usr/local/tomcat/webapps/alfresco/WEB-INF/lib/mariadb-java-client-2.7.4.jar
+{{- end }}
 
   solr6:
     image: docker.io/alfresco/alfresco-search-services:${SEARCH_TAG}
@@ -246,6 +294,11 @@ services:
 
 volumes:
   activemq-data:
+{{- if eq .Database "postgres" }}
   postgres-data:
+{{- end }}
+{{- if eq .Database "mariadb" }}
+  mariadb-data:
+{{- end }}
   alf-repo-data:
   solr-data:

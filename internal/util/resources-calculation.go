@@ -57,7 +57,7 @@ func FormatMem(miB int64) string {
 }
 
 var defaults = map[string]Resource{
-	"postgres": {
+	"database": {
 		Limits:       CPUMem{CPU: 1, MiB: 1024},
 		Reservations: CPUMem{CPU: .5, MiB: 512},
 	},

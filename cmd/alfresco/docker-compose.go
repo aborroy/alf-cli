@@ -2,6 +2,7 @@ package alfresco
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -22,13 +23,13 @@ type Configuration struct {
 	HTTPS            bool
 	Server           string
 	AdminPassword    string
+	Database         string
 	DbPassword       string
 	Port             string
 	UseBinding       bool
 	BindingIP        string
 	UseFtp           bool
 	FtpBindingIP     string
-	UseMariaDB       bool
 	IndexCrossLocale bool
 	IndexContent     bool
 	SolrComm         string
@@ -287,18 +288,21 @@ func setFTP(cfg *Configuration, cmdFlags *pflag.FlagSet) error {
 	return nil
 }
 func setDatabase(config *Configuration, cmdFlags *pflag.FlagSet) error {
-	config.DbPassword = "alfresco" // Default password for the database
+	config.DbPassword = "alfresco"
 
-	if cmdFlags.Changed("mariadb") {
-		config.UseMariaDB = flags.UseMariaDB
+	if cmdFlags.Changed("database") {
+		config.Database = flags.Database
 		return nil
 	}
 
-	useMariaDB, err := selector.RunYesNoSelector("Do you want to use MariaDB instead of PostgreSQL?", false)
+	database, err := selector.RunSelector(
+		"Which Database Engine do you want to use?",
+		[]string{"postgres", "mariadb"},
+	)
 	if err != nil {
 		return err
 	}
-	config.UseMariaDB = useMariaDB
+	config.Database = database
 	return nil
 }
 func setIndexing(config *Configuration, cmdFlags *pflag.FlagSet) error {
@@ -503,16 +507,48 @@ func generateConfigFiles(cfg *Configuration) error {
 		}
 		out.Close()
 	}
+
+	// 4. handle binary files conditionally
+	if cfg.Database == "mariadb" {
+		if err := copyBinary("templates/libs/mariadb-java-client-2.7.4.jar", "libs/mariadb-java-client-2.7.4.jar"); err != nil {
+			return fmt.Errorf("copy mariadb driver: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func copyBinary(srcPath string, outPath string) error {
+	in, err := TemplateFS.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("open embedded binary %s: %w", srcPath, err)
+	}
+	defer in.Close()
+
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", filepath.Dir(outPath), err)
+	}
+
+	out, err := os.Create(outPath)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", outPath, err)
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return fmt.Errorf("copy %s: %w", outPath, err)
+	}
+
 	return nil
 }
 
 func logConfiguration(config *Configuration) {
 	fmt.Printf("Configuration: Version=%s, RAM=%d, HTTPS=%t, Server=%s, Port=%s, "+
-		"UseBinding=%t, BindingIP=%s, UseFtp=%t, FtpBindingIP=%s, UseMariaDB=%t, "+
+		"UseBinding=%t, BindingIP=%s, UseFtp=%t, FtpBindingIP=%s, Database=%s, "+
 		"IndexCrossLocale=%t, IndexContent=%t, SolrComm=%s, UseActiveMQ=%t, "+
 		"AmqUser=%s, UseSMTP=%t, Addons=%s, UseDockerVolume=%t\n",
 		config.Version, config.RAM, config.HTTPS, config.Server, config.Port,
-		config.UseBinding, config.BindingIP, config.UseFtp, config.FtpBindingIP, config.UseMariaDB,
+		config.UseBinding, config.BindingIP, config.UseFtp, config.FtpBindingIP, config.Database,
 		config.IndexCrossLocale, config.IndexContent, config.SolrComm, config.UseActiveMQ,
 		config.AmqUser, config.UseSMTP, config.Addons, config.UseDockerVolume)
 }
@@ -528,7 +564,7 @@ func logConfiguration(config *Configuration) {
 		  --port=8080 \
 		  --use-binding=false \
 		  --ftp=false \
-		  --mariadb=false \
+		  --database=postgres \
 		  --index-content=true \
 		  --index-cross-locale=true \
 		  --solr-comm=secret \
@@ -554,7 +590,7 @@ func init() {
 	dockerComposeCmd.Flags().StringVar(&flags.FtpBindingIP, "ftp-binding-ip", "0.0.0.0", "FTP binding IP")
 
 	// Database and indexing flags
-	dockerComposeCmd.Flags().BoolVar(&flags.UseMariaDB, "mariadb", false, "Use MariaDB instead of PostgreSQL")
+	dockerComposeCmd.Flags().StringVar(&flags.Database, "database", "postgres", "Database Engine (postgres, mariadb)")
 	dockerComposeCmd.Flags().BoolVar(&flags.IndexCrossLocale, "index-cross-locale", true, "Enable cross-locale indexing")
 	dockerComposeCmd.Flags().BoolVar(&flags.IndexContent, "index-content", true, "Enable full-text indexing")
 	dockerComposeCmd.Flags().StringVar(&flags.SolrComm, "solr-comm", "", "Solr communication method (secret|https)")
