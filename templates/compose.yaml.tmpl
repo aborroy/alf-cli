@@ -123,7 +123,7 @@ services:
         -Dalfresco.port={{ .Port }}
         -Dshare.host=${SERVER_NAME}
         -Dshare.port={{ .Port }}
-        -Dalfresco_user_store.adminpassword={{ .AdminPassword }}
+        -Dalfresco_user_store.adminpassword=${ADMIN_PASSWORD}
         -Ddb.password=${DB_PASSWORD}
 {{- if eq .Database "postgres" }}
         -Ddb.driver=org.postgresql.Driver
@@ -184,7 +184,15 @@ services:
 {{- end }}
 
   solr6:
-    image: docker.io/alfresco/alfresco-search-services:${SEARCH_TAG}
+    build:
+      context: ./search
+      args:
+        SEARCH_TAG: ${SEARCH_TAG}
+        SOLR_HOSTNAME: solr6
+        ALFRESCO_HOSTNAME: alfresco
+        ALFRESCO_COMMS: {{ .SolrComm }}
+        CROSS_LOCALE: {{ .IndexCrossLocale }}
+        CONTENT_INDEXING: {{ .IndexContent }}
     environment:
       SOLR_ALFRESCO_HOST: "alfresco"
       SOLR_ALFRESCO_PORT: "8080"
