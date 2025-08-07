@@ -100,6 +100,14 @@ services:
         -Dcsrf.filter.enabled=false
         -Dmessaging.broker.url="failover:(nio://activemq:61616)?timeout=3000&jms.useCompression=true"
         -DlocalTransform.core-aio.url=http://transform-core-aio:8090/
+{{- if .UseFtp }}
+        -Dftp.enabled=true
+        -Dftp.port=2121
+        -Dftp.externalAddress=${SERVER_NAME}
+        -Dftp.bindto=${BIND_IP_FTP:-0.0.0.0}
+        -Dftp.dataPortFrom=2433
+        -Dftp.dataPortTo=2434 
+{{- end }}
         -Ddeployment.method=DOCKER_COMPOSE
         -XX:MinRAMPercentage=50
         -XX:MaxRAMPercentage=80
