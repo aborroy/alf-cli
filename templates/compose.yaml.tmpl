@@ -57,13 +57,22 @@ services:
         - mariadb-data:/var/lib/mysql
 {{- end }}
 
+{{- if .UseActiveMQ }}
   activemq:
     image: docker.io/alfresco/alfresco-activemq:${ACTIVEMQ_TAG}
     environment:
+{{- if .AmqUser }}
       ACTIVEMQ_ADMIN_LOGIN: ${ACTIVEMQ_ADMIN_USER}
+{{- end }}
+{{- if .AmqPassword }}
       ACTIVEMQ_ADMIN_PASSWORD: ${ACTIVEMQ_ADMIN_PASSWORD}
+{{- end }}      
     healthcheck:
+{{- if .AmqUser }}    
       test: ["CMD", "curl", "-f", "--user", "${ACTIVEMQ_ADMIN_USER}:${ACTIVEMQ_ADMIN_PASSWORD}", "http://localhost:8161/admin"]
+{{- else }}
+      test: ["CMD", "curl", "-f", "http://localhost:8161/admin"]
+{{- end }}      
       interval: 10s
       timeout: 5s
       retries: 5
@@ -77,20 +86,27 @@ services:
           memory: '{{ formatMem (index .Resources "activemq").Reservations.MiB }}'
     volumes:
       - activemq-data:/opt/activemq/data
-
+{{- end }}
+  
   transform-core-aio:
     image: docker.io/alfresco/alfresco-transform-core-aio:${TRANSFORM_TAG}
     environment:
+{{- if .UseActiveMQ }}
       ACTIVEMQ_URL: nio://activemq:61616
-      ACTIVEMQ_USER: admin
+  {{- if .AmqUser }}
+      ACTIVEMQ_USER: ${ACTIVEMQ_ADMIN_USER}
+  {{- end }}
+  {{- if .AmqPassword }}
       ACTIVEMQ_PASSWORD: ${ACTIVEMQ_ADMIN_PASSWORD}
+  {{- end }}      
+{{- end }}
       JAVA_OPTS: >-
         -Dserver.tomcat.threads.min=4        
         -Dserver.tomcat.threads.max=12
         -XX:MinRAMPercentage=50
         -XX:MaxRAMPercentage=80
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8090/transform/config"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -102,9 +118,11 @@ services:
         reservations:
           cpus: '{{ printf "%.2f" (index .Resources "transform-core-aio").Reservations.CPU }}'
           memory: '{{ formatMem (index .Resources "transform-core-aio").Reservations.MiB }}'
+{{- if .UseActiveMQ }}
     depends_on: 
       activemq:
         condition: service_healthy
+{{- end }}        
 
   alfresco:
     image: docker.io/alfresco/alfresco-content-repository-community:${REPO_TAG}
@@ -138,7 +156,6 @@ services:
         -Dsolr.sharedSecret=${SECURE_COMMS_SECRET}
         -Dindex.subsystem.name=solr6
         -Dcsrf.filter.enabled=false
-        -Dmessaging.broker.url="failover:(nio://activemq:61616)?timeout=3000&jms.useCompression=true"
         -DlocalTransform.core-aio.url=http://transform-core-aio:8090/
 {{- if .UseFtp }}
         -Dftp.enabled=true
@@ -147,6 +164,18 @@ services:
         -Dftp.bindto=${BIND_IP_FTP:-0.0.0.0}
         -Dftp.dataPortFrom=2433
         -Dftp.dataPortTo=2434 
+{{- end }}
+{{- if .UseActiveMQ }}
+        -Dmessaging.broker.url="failover:(nio://activemq:61616)?timeout=3000&jms.useCompression=true"
+  {{- if .AmqUser }}
+        -Dmessaging.broker.username=${ACTIVEMQ_ADMIN_USER}
+  {{- end }}
+  {{- if .AmqPassword }}
+        -Dmessaging.broker.password=${ACTIVEMQ_ADMIN_PASSWORD}
+  {{- end }}
+{{- else }}
+        -Dmessaging.subsystem.autoStart=false
+        -Drepo.event2.enabled=false
 {{- end }}
         -Ddeployment.method=DOCKER_COMPOSE
         -XX:MinRAMPercentage=50
@@ -173,8 +202,10 @@ services:
       mariadb:
 {{- end }}
         condition: service_healthy
+{{- if .UseActiveMQ }}
       activemq:
         condition: service_healthy
+{{- end }}
       transform-core-aio:
         condition: service_healthy
     volumes:
@@ -301,7 +332,9 @@ services:
       - ${BIND_IP_NGINX:-0.0.0.0}:{{ .Port }}:{{ .Port }}
 
 volumes:
+{{- if .UseActiveMQ }}
   activemq-data:
+{{- end }}  
 {{- if eq .Database "postgres" }}
   postgres-data:
 {{- end }}

@@ -514,6 +514,11 @@ func generateConfigFiles(cfg *Configuration) error {
 			return fmt.Errorf("copy mariadb driver: %w", err)
 		}
 	}
+	if !cfg.UseActiveMQ {
+		if err := copyBinary("templates/libs/activemq-broker-5.18.3.jar", "libs/activemq-broker-5.18.3.jar"); err != nil {
+			return fmt.Errorf("copy ActiveMQ local library: %w", err)
+		}
+	}
 
 	return nil
 }
