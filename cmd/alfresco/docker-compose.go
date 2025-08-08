@@ -520,6 +520,13 @@ func generateConfigFiles(cfg *Configuration) error {
 			return fmt.Errorf("copy ActiveMQ local library: %w", err)
 		}
 	}
+	if cfg.SolrComm == "https" {
+		if err := copyFolder("templates/keystores", "keystores", TemplateFS); err != nil {
+			return fmt.Errorf("copy mTLS keystores: %w", err)
+		}
+	}
+
+	// 5 - copy addons
 	if slices.Contains(cfg.Addons, "alf-tengine-ocr") {
 		if err := copyBinary("templates/addons/jars/embed-metadata-action-1.0.0.jar",
 			"alfresco/modules/jars/tengine-ocr-1.1.0.jar"); err != nil {
@@ -594,6 +601,40 @@ func copyBinary(srcPath string, outPath string) error {
 	}
 
 	return nil
+}
+
+// CopyFolder copies all files and directories from srcDir to dstDir
+func copyFolder(srcDir, dstDir string, sourceFS fs.FS) error {
+	return fs.WalkDir(sourceFS, srcDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath := strings.TrimPrefix(path, srcDir)
+		targetPath := filepath.Join(dstDir, relPath)
+
+		if d.IsDir() {
+			return os.MkdirAll(targetPath, 0o755)
+		}
+
+		in, err := sourceFS.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+			return err
+		}
+
+		out, err := os.Create(targetPath)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		_, err = io.Copy(out, in)
+		return err
+	})
 }
 
 /*
