@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -46,8 +47,6 @@ var flags Configuration
 
 // Available addon options
 var availableAddons = []selector.Option{
-	{Code: "google-docs", Description: "Google Docs 3.x"},
-	{Code: "js-console", Description: "JavaScript Console 0.7"},
 	{Code: "ootbee-support-tools", Description: "Order of the Bee Support Tools 1.2.2.0"},
 	{Code: "share-site-creators", Description: "Share Site Creators 0.0.8"},
 	{Code: "share-site-space-templates", Description: "Share Site Space Templates 1.1.4-SNAPSHOT"},
@@ -445,8 +444,11 @@ func setDockerVolume(config *Configuration, cmdFlags *pflag.FlagSet) error {
 	return nil
 }
 
+// generateConfigFiles renders every *.tmpl in TemplateFS to an output file
+// whose path is the same as the template path minus the "templates/" prefix
+// and the ".tmpl" suffix.
 func generateConfigFiles(cfg *Configuration) error {
-	// 1. collect all *.tmpl files inside the embedded FS
+	// 1 – collect all *.tmpl files inside the embedded FS
 	var paths []string
 	if err := fs.WalkDir(TemplateFS, "templates", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -460,46 +462,60 @@ func generateConfigFiles(cfg *Configuration) error {
 		return fmt.Errorf("walk embedded templates: %w", err)
 	}
 
-	// 2. parse them all in one pass
+	// 2 – create a template root and register every file under its unique path
 	root := template.New("root").Funcs(template.FuncMap{
 		"formatMem": util.FormatMem,
+		"hasAddon":  func(code string) bool { return slices.Contains(cfg.Addons, code) },
 	})
-	tmpl, err := root.ParseFS(TemplateFS, paths...)
-	if err != nil {
-		return fmt.Errorf("parse templates: %w", err)
+
+	for _, src := range paths {
+		data, err := fs.ReadFile(TemplateFS, src)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", src, err)
+		}
+		name := strings.TrimPrefix(src, "templates/") // e.g. "alfresco/Dockerfile.tmpl"
+		if _, err := root.New(name).Parse(string(data)); err != nil {
+			return fmt.Errorf("parse %s: %w", src, err)
+		}
 	}
 
-	// 3. render each template to an output file
+	// 3 – render each template to its output file
 	for _, src := range paths {
-		rel := strings.TrimPrefix(src, "templates/")
-		outPath := strings.TrimSuffix(rel, ".tmpl")
+		rel := strings.TrimPrefix(src, "templates/") // "alfresco/Dockerfile.tmpl"
+		outPath := strings.TrimSuffix(rel, ".tmpl")  // "alfresco/Dockerfile"
 
 		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 			return fmt.Errorf("mkdir %s: %w", filepath.Dir(outPath), err)
 		}
-
 		out, err := os.Create(outPath)
 		if err != nil {
 			return fmt.Errorf("create %s: %w", outPath, err)
 		}
 
-		name := filepath.Base(src)
-		if err := tmpl.ExecuteTemplate(out, name, cfg); err != nil {
+		if err := root.Lookup(rel).Execute(out, cfg); err != nil {
 			out.Close()
 			return fmt.Errorf("execute %s: %w", src, err)
 		}
 		out.Close()
 	}
 
-	// 4. handle binary files conditionally
+	// 4 – handle binary files conditionally
 	if cfg.Database == "mariadb" {
-		if err := copyBinary("templates/libs/mariadb-java-client-2.7.4.jar", "libs/mariadb-java-client-2.7.4.jar"); err != nil {
+		if err := copyBinary("templates/libs/mariadb-java-client-2.7.4.jar",
+			"libs/mariadb-java-client-2.7.4.jar"); err != nil {
 			return fmt.Errorf("copy mariadb driver: %w", err)
 		}
 	}
 	if !cfg.UseActiveMQ {
-		if err := copyBinary("templates/libs/activemq-broker-5.18.3.jar", "libs/activemq-broker-5.18.3.jar"); err != nil {
+		if err := copyBinary("templates/libs/activemq-broker-5.18.3.jar",
+			"libs/activemq-broker-5.18.3.jar"); err != nil {
 			return fmt.Errorf("copy ActiveMQ local library: %w", err)
+		}
+	}
+	if slices.Contains(cfg.Addons, "alf-tengine-ocr") {
+		if err := copyBinary("templates/addons/jars/embed-metadata-action-1.0.0.jar",
+			"alfresco/modules/jars/tengine-ocr-1.1.0.jar"); err != nil {
+			return fmt.Errorf("copy TEngine OCR repository addon: %w", err)
 		}
 	}
 
