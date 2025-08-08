@@ -26,22 +26,37 @@ func (m compactYNModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
+
 		case "left", "h":
 			if m.selected > 0 {
 				m.selected--
 			}
+
 		case "right", "l":
 			if m.selected < len(m.options)-1 {
 				m.selected++
 			}
+
+		case "y", "Y":
+			m.selected = 0
+			m.choice = true
+			return m, tea.Quit
+
+		case "n", "N":
+			m.selected = 1
+			m.choice = false
+			return m, tea.Quit
+
 		case "enter":
 			m.choice = (m.selected == 0)
 			return m, tea.Quit
+
 		case "esc":
 			m.selected = m.defaultIdx
 			m.choice = (m.defaultIdx == 0)

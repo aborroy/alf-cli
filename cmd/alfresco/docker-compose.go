@@ -37,7 +37,6 @@ type Configuration struct {
 	UseActiveMQ      bool
 	AmqUser          string
 	AmqPassword      string
-	UseSMTP          bool
 	Addons           []string
 	UseDockerVolume  bool
 	Resources        map[string]util.Resource
@@ -135,9 +134,6 @@ func buildConfiguration(cmd *cobra.Command) (*Configuration, error) {
 	if err := setActiveMQ(config, cmdFlags); err != nil {
 		return nil, err
 	}
-	if err := setSMTP(config, cmdFlags); err != nil {
-		return nil, err
-	}
 	if err := setAddons(config, cmdFlags); err != nil {
 		return nil, err
 	}
@@ -196,7 +192,7 @@ func setPassword(config *Configuration, cmdFlags *pflag.FlagSet) error {
 	if cmdFlags.Changed("password") {
 		password = flags.AdminPassword
 	} else {
-		password, err = selector.RunPasswordInput("Choose the password for your 'admin' user")
+		password, err = selector.RunPasswordInput("Choose the password for your 'admin' user", "admin")
 		if err != nil {
 			return err
 		}
@@ -388,7 +384,7 @@ func setActiveMQ(config *Configuration, cmdFlags *pflag.FlagSet) error {
 		if cmdFlags.Changed("amq-password") {
 			config.AmqPassword = flags.AmqPassword
 		} else {
-			amqPassword, err := selector.RunPasswordInput("Enter the password for ActiveMQ")
+			amqPassword, err := selector.RunPasswordInput("Enter the password for ActiveMQ", "admin")
 			if err != nil {
 				return err
 			}
@@ -396,19 +392,6 @@ func setActiveMQ(config *Configuration, cmdFlags *pflag.FlagSet) error {
 		}
 	}
 
-	return nil
-}
-func setSMTP(config *Configuration, cmdFlags *pflag.FlagSet) error {
-	if cmdFlags.Changed("smtp") {
-		config.UseSMTP = flags.UseSMTP
-		return nil
-	}
-
-	useSMTP, err := selector.RunYesNoSelector("Do you want to create an internal SMTP server?", false)
-	if err != nil {
-		return err
-	}
-	config.UseSMTP = useSMTP
 	return nil
 }
 func setAddons(config *Configuration, cmdFlags *pflag.FlagSet) error {
@@ -549,13 +532,13 @@ func copyBinary(srcPath string, outPath string) error {
 
 func logConfiguration(config *Configuration) {
 	fmt.Printf("Configuration: Version=%s, RAM=%d, HTTPS=%t, Server=%s, Port=%s, "+
-		"UseBinding=%t, BindingIP=%s, UseFtp=%t, FtpBindingIP=%s, Database=%s, "+
+		"UseBinding=%t, BindingIP=%s, AdminPassword=%s, UseFtp=%t, FtpBindingIP=%s, Database=%s, "+
 		"IndexCrossLocale=%t, IndexContent=%t, SolrComm=%s, UseActiveMQ=%t, "+
-		"AmqUser=%s, UseSMTP=%t, Addons=%s, UseDockerVolume=%t\n",
+		"AmqUser=%s, Addons=%s, UseDockerVolume=%t\n",
 		config.Version, config.RAM, config.HTTPS, config.Server, config.Port,
-		config.UseBinding, config.BindingIP, config.UseFtp, config.FtpBindingIP, config.Database,
+		config.UseBinding, config.BindingIP, config.AdminPassword, config.UseFtp, config.FtpBindingIP, config.Database,
 		config.IndexCrossLocale, config.IndexContent, config.SolrComm, config.UseActiveMQ,
-		config.AmqUser, config.UseSMTP, config.Addons, config.UseDockerVolume)
+		config.AmqUser, config.Addons, config.UseDockerVolume)
 }
 
 /*
@@ -574,7 +557,6 @@ func logConfiguration(config *Configuration) {
 		  --index-cross-locale=true \
 		  --solr-comm=secret \
 		  --activemq=false \
-		  --smtp=false \
 		  --addons=js-console \
 		  --docker-volume=false
 */
@@ -604,9 +586,6 @@ func init() {
 	dockerComposeCmd.Flags().BoolVar(&flags.UseActiveMQ, "activemq", false, "Enable ActiveMQ")
 	dockerComposeCmd.Flags().StringVar(&flags.AmqUser, "amq-user", "admin", "ActiveMQ username")
 	dockerComposeCmd.Flags().StringVar(&flags.AmqPassword, "amq-password", "admin", "ActiveMQ password")
-
-	// Additional service flags
-	dockerComposeCmd.Flags().BoolVar(&flags.UseSMTP, "smtp", false, "Enable internal SMTP server")
 
 	// Addon and volume flags
 	dockerComposeCmd.Flags().StringSliceVarP(&flags.Addons, "addons", "a", nil, "Comma-separated list of addon codes")
