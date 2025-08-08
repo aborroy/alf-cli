@@ -448,7 +448,7 @@ func setDockerVolume(config *Configuration, cmdFlags *pflag.FlagSet) error {
 // whose path is the same as the template path minus the "templates/" prefix
 // and the ".tmpl" suffix.
 func generateConfigFiles(cfg *Configuration) error {
-	// 1 – collect all *.tmpl files inside the embedded FS
+	// 1 - collect all *.tmpl files inside the embedded FS
 	var paths []string
 	if err := fs.WalkDir(TemplateFS, "templates", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -462,7 +462,7 @@ func generateConfigFiles(cfg *Configuration) error {
 		return fmt.Errorf("walk embedded templates: %w", err)
 	}
 
-	// 2 – create a template root and register every file under its unique path
+	// 2 - create a template root and register every file under its unique path
 	root := template.New("root").Funcs(template.FuncMap{
 		"formatMem": util.FormatMem,
 		"hasAddon":  func(code string) bool { return slices.Contains(cfg.Addons, code) },
@@ -479,7 +479,7 @@ func generateConfigFiles(cfg *Configuration) error {
 		}
 	}
 
-	// 3 – render each template to its output file
+	// 3 - render each template to its output file
 	for _, src := range paths {
 		rel := strings.TrimPrefix(src, "templates/") // "alfresco/Dockerfile.tmpl"
 		outPath := strings.TrimSuffix(rel, ".tmpl")  // "alfresco/Dockerfile"
@@ -499,7 +499,7 @@ func generateConfigFiles(cfg *Configuration) error {
 		out.Close()
 	}
 
-	// 4 – handle binary files conditionally
+	// 4 - handle binary files and addons
 	if cfg.Database == "mariadb" {
 		if err := copyBinary("templates/libs/mariadb-java-client-2.7.4.jar",
 			"libs/mariadb-java-client-2.7.4.jar"); err != nil {
@@ -518,6 +518,22 @@ func generateConfigFiles(cfg *Configuration) error {
 			return fmt.Errorf("copy TEngine OCR repository addon: %w", err)
 		}
 	}
+	if slices.Contains(cfg.Addons, "ootbee-support-tools") {
+		if err := copyBinary("templates/addons/amps/support-tools-repo-1.2.3.0-SNAPSHOT-amp.amp",
+			"alfresco/modules/amps/support-tools-repo-1.2.3.0-SNAPSHOT-amp.amp"); err != nil {
+			return fmt.Errorf("copy OOTB Tools repository addon: %w", err)
+		}
+		if err := copyBinary("templates/addons/amps_share/support-tools-share-1.2.3.0-SNAPSHOT-amp.amp",
+			"share/modules/amps/support-tools-share-1.2.3.0-SNAPSHOT-amp.amp"); err != nil {
+			return fmt.Errorf("copy OOTB Tools repository addon: %w", err)
+		}
+	}
+	/**
+	{Code: "share-site-creators", Description: "Share Site Creators 0.0.8"},
+	{Code: "share-site-space-templates", Description: "Share Site Space Templates 1.1.4-SNAPSHOT"},
+	{Code: "esign-cert", Description: "ESign Cert 1.8.4"},
+	{Code: "share-online-edition", Description: "Edit with LibreOffice in Alfresco Share 0.3."},
+	*/
 
 	return nil
 }

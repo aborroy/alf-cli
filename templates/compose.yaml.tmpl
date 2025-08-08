@@ -292,7 +292,10 @@ services:
       - solr-data:/opt/alfresco-search-services/data
 
   share:
-    image: docker.io/alfresco/alfresco-share:${SHARE_TAG}
+    build:
+      context: ./share
+      args:
+        SHARE_TAG: ${SHARE_TAG}
     environment:
       REPO_HOST: "alfresco"
       REPO_PORT: "8080"
