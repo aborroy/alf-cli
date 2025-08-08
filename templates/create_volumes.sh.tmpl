@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+mkdir -p ./data/alf-repo-data
+chown -R 33000 data/alf-repo-data
+
+mkdir -p ./data/solr-data
+chown 33007 ./data/solr-data
+
+{{ if eq .Database "postgres" }}
+mkdir -p ./data/postgres-data
+chown 999 ./data/postgres-data
+{{- else }}
+mkdir -p ./data/mariadb-data
+chown 999 ./data/mariadb-data
+{{- end }}
+
+{{ if .UseActiveMQ }}
+mkdir -p ./data/activemq-data
+chown -R 33031 data/activemq-data
+{{- end }}

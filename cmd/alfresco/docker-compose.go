@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"text/template"
@@ -71,8 +72,6 @@ func runDockerCompose(cmd *cobra.Command, args []string) error {
 	if err := generateConfigFiles(config); err != nil {
 		return fmt.Errorf("failed to generate config file: %w", err)
 	}
-
-	logConfiguration(config)
 
 	return nil
 }
@@ -482,7 +481,16 @@ func generateConfigFiles(cfg *Configuration) error {
 	// 3 - render each template to its output file
 	for _, src := range paths {
 		rel := strings.TrimPrefix(src, "templates/") // "alfresco/Dockerfile.tmpl"
-		outPath := strings.TrimSuffix(rel, ".tmpl")  // "alfresco/Dockerfile"
+
+		if filepath.Base(rel) == "create_volumes.sh.tmpl" {
+			if runtime.GOOS == "linux" {
+				fmt.Printf("\x1b[33;1mWARNING: Before starting Alfresco for the first time, run 'sudo ./create-volumes.sh'\x1b[0m\n")
+			} else {
+				continue
+			}
+		}
+
+		outPath := strings.TrimSuffix(rel, ".tmpl") // "alfresco/Dockerfile"
 
 		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 			return fmt.Errorf("mkdir %s: %w", filepath.Dir(outPath), err)
@@ -586,17 +594,6 @@ func copyBinary(srcPath string, outPath string) error {
 	}
 
 	return nil
-}
-
-func logConfiguration(config *Configuration) {
-	fmt.Printf("Configuration: Version=%s, RAM=%d, HTTPS=%t, Server=%s, Port=%s, "+
-		"UseBinding=%t, BindingIP=%s, AdminPassword=%s, UseFtp=%t, FtpBindingIP=%s, Database=%s, "+
-		"IndexCrossLocale=%t, IndexContent=%t, SolrComm=%s, UseActiveMQ=%t, "+
-		"AmqUser=%s, Addons=%s, UseDockerVolume=%t\n",
-		config.Version, config.RAM, config.HTTPS, config.Server, config.Port,
-		config.UseBinding, config.BindingIP, config.AdminPassword, config.UseFtp, config.FtpBindingIP, config.Database,
-		config.IndexCrossLocale, config.IndexContent, config.SolrComm, config.UseActiveMQ,
-		config.AmqUser, config.Addons, config.UseDockerVolume)
 }
 
 /*

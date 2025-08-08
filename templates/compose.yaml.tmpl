@@ -23,7 +23,11 @@ services:
           cpus: '{{ printf "%.2f" (index .Resources "database").Reservations.CPU }}'
           memory: '{{ formatMem (index .Resources "database").Reservations.MiB }}'
     volumes:
+  {{- if .UseDockerVolume }}    
       - postgres-data:/var/lib/postgresql/data
+  {{- else }}
+      - ./data/postgres:/var/lib/postgresql/data
+  {{- end }}
 {{- end }}
 {{- if eq .Database "mariadb" }}
   mariadb:
@@ -54,7 +58,11 @@ services:
           cpus: '{{ printf "%.2f" (index .Resources "database").Reservations.CPU }}'
           memory: '{{ formatMem (index .Resources "database").Reservations.MiB }}'
     volumes:
+  {{- if .UseDockerVolume }}    
         - mariadb-data:/var/lib/mysql
+  {{- else }}
+        - ./data/mariadb:/var/lib/mysql 
+  {{- end}}
 {{- end }}
 
 {{- if .UseActiveMQ }}
@@ -85,7 +93,11 @@ services:
           cpus: '{{ printf "%.2f" (index .Resources "activemq").Reservations.CPU }}'
           memory: '{{ formatMem (index .Resources "activemq").Reservations.MiB }}'
     volumes:
+  {{- if .UseDockerVolume }}
       - activemq-data:/opt/activemq/data
+  {{- else }}
+      - ./data/activemq:/opt/activemq/data
+  {{- end }}
 {{- end }}
   
   transform-core-aio:
@@ -253,7 +265,11 @@ services:
       transform-core-aio:
         condition: service_healthy
     volumes:
+{{- if .UseDockerVolume }}    
       - alf-repo-data:/usr/local/tomcat/alf_data
+{{- else }}
+      - ./data/alfresco:/usr/local/tomcat/alf_data
+{{- end }}
 {{- if eq .Database "mariadb" }}
       - ./libs/mariadb-java-client-2.7.4.jar:/usr/local/tomcat/webapps/alfresco/WEB-INF/lib/mariadb-java-client-2.7.4.jar
 {{- end }}
@@ -289,7 +305,11 @@ services:
       alfresco:
         condition: service_healthy
     volumes:
+{{- if .UseDockerVolume }}    
       - solr-data:/opt/alfresco-search-services/data
+{{- else }}
+      - ./data/solr:/opt/alfresco-search-services/data
+{{- end }}
 
   share:
     build:
@@ -378,15 +398,17 @@ services:
     ports:
       - ${BIND_IP_NGINX:-0.0.0.0}:{{ .Port }}:{{ .Port }}
 
+{{ if .UseDockerVolume }}
 volumes:
-{{- if .UseActiveMQ }}
+  {{- if .UseActiveMQ }}
   activemq-data:
-{{- end }}  
-{{- if eq .Database "postgres" }}
+  {{- end }}  
+  {{- if eq .Database "postgres" }}
   postgres-data:
-{{- end }}
-{{- if eq .Database "mariadb" }}
+  {{- end }}
+  {{- if eq .Database "mariadb" }}
   mariadb-data:
-{{- end }}
+  {{- end }}
   alf-repo-data:
   solr-data:
+{{- end }}
