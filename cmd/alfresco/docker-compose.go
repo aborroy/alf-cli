@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"text/template"
@@ -490,7 +489,7 @@ func generateConfigFiles(cfg *Configuration) error {
 		rel := strings.TrimPrefix(src, "templates/") // "alfresco/Dockerfile.tmpl"
 
 		if filepath.Base(rel) == "create_volumes.sh.tmpl" {
-			if runtime.GOOS == "linux" {
+			if util.IsLinux() {
 				fmt.Printf("\x1b[33;1mWARNING: Before starting Alfresco for the first time, run 'sudo ./create-volumes.sh'\x1b[0m\n")
 			} else {
 				continue
