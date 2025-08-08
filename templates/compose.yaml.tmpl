@@ -210,8 +210,18 @@ services:
       JAVA_OPTS: >-
         -Dalfresco.host=${SERVER_NAME}
         -Dalfresco.port={{ .Port }}
+{{- if .HTTPS }}
+        -Dalfresco.protocol=https 
+{{- else }}
+        -Dalfresco.protocol=http
+{{- end }}
         -Dshare.host=${SERVER_NAME}
         -Dshare.port={{ .Port }}
+{{- if .HTTPS }}
+        -Dshare.protocol=https 
+{{- else }}
+        -Dshare.protocol=http
+{{- end }}
         -Dalfresco_user_store.adminpassword=${ADMIN_PASSWORD}
         -Ddb.password=${DB_PASSWORD}
 {{- if eq .Database "postgres" }}
@@ -386,16 +396,28 @@ services:
       context: ./share
       args:
         SHARE_TAG: ${SHARE_TAG}
+        SERVER_NAME: ${SERVER_NAME}
+        HTTP_PORT: {{ .Port }}
     environment:
       REPO_HOST: "alfresco"
       REPO_PORT: "8080"
+{{- if .HTTPS }}
+      CSRF_FILTER_REFERER: "https://${SERVER_NAME}:{{ .Port }}/.*"
+      CSRF_FILTER_ORIGIN: "https://${SERVER_NAME}:{{ .Port }}"
+{{- else }}
       CSRF_FILTER_REFERER: "http://${SERVER_NAME}:{{ .Port }}/.*"
       CSRF_FILTER_ORIGIN: "http://${SERVER_NAME}:{{ .Port }}"
+{{- end }}      
       JAVA_OPTS: >-
         -XX:MinRAMPercentage=50
         -XX:MaxRAMPercentage=80
         -Dalfresco.host=localhost
         -Dalfresco.port=8080
+{{- if .HTTPS }}
+        -Dalfresco.protocol=https
+{{- else }}
+        -Dalfresco.protocol=http
+{{- end }}        
     deploy:
       resources:
         limits:
@@ -464,7 +486,11 @@ services:
       alfresco:
         condition: service_started
     volumes:
-      - ./config/nginx.conf:/etc/nginx/nginx.conf        
+      - ./config/nginx.conf:/etc/nginx/nginx.conf
+{{- if .HTTPS }}      
+      - ./config/cert/localhost.cer:/etc/nginx/localhost.cer
+      - ./config/cert/localhost.key:/etc/nginx/localhost.key
+{{- end }}      
     ports:
       - ${BIND_IP_NGINX:-0.0.0.0}:{{ .Port }}:{{ .Port }}
 

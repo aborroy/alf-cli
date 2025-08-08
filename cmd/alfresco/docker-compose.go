@@ -205,7 +205,14 @@ func setPort(config *Configuration, cmdFlags *pflag.FlagSet) error {
 		return nil
 	}
 
-	port, err := selector.RunTextInput("What HTTP port do you want to use (all the services are using the same port)?", "8080")
+	var defaultPort string
+	if config.HTTPS {
+		defaultPort = "8443"
+	} else {
+		defaultPort = "8080"
+	}
+
+	port, err := selector.RunTextInput("What HTTP port do you want to use (all the services are using the same port)?", defaultPort)
 	if err != nil {
 		return err
 	}
@@ -523,6 +530,11 @@ func generateConfigFiles(cfg *Configuration) error {
 	if cfg.SolrComm == "https" {
 		if err := copyFolder("templates/keystores", "keystores", TemplateFS); err != nil {
 			return fmt.Errorf("copy mTLS keystores: %w", err)
+		}
+	}
+	if cfg.HTTPS {
+		if err := copyFolder("templates/config/cert", "config/cert", TemplateFS); err != nil {
+			return fmt.Errorf("copy HTTPs certificates: %w", err)
 		}
 	}
 

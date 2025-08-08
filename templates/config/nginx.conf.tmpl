@@ -7,9 +7,16 @@ events {
 http {
     server {
 
-        listen *:{{ .Port }};
+        listen *:{{ .Port }}{{ if .HTTPS }} ssl {{ end }};
 
         client_max_body_size 0;
+
+        {{- if .HTTPS }}
+        ssl_certificate             /etc/nginx/localhost.cer;
+        ssl_certificate_key         /etc/nginx/localhost.key;
+        ssl_prefer_server_ciphers   on;
+        ssl_protocols               TLSv1.2 TLSv1.3;
+        {{- end }}
 
         set  $allowOriginSite *;
         proxy_pass_request_headers on;
