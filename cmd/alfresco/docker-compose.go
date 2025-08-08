@@ -525,15 +525,41 @@ func generateConfigFiles(cfg *Configuration) error {
 		}
 		if err := copyBinary("templates/addons/amps_share/support-tools-share-1.2.3.0-SNAPSHOT-amp.amp",
 			"share/modules/amps/support-tools-share-1.2.3.0-SNAPSHOT-amp.amp"); err != nil {
-			return fmt.Errorf("copy OOTB Tools repository addon: %w", err)
+			return fmt.Errorf("copy OOTB Tools share addon: %w", err)
 		}
 	}
-	/**
-	{Code: "share-site-creators", Description: "Share Site Creators 0.0.8"},
-	{Code: "share-site-space-templates", Description: "Share Site Space Templates 1.1.4-SNAPSHOT"},
-	{Code: "esign-cert", Description: "ESign Cert 1.8.4"},
-	{Code: "share-online-edition", Description: "Edit with LibreOffice in Alfresco Share 0.3."},
-	*/
+	if slices.Contains(cfg.Addons, "share-site-creators") {
+		if err := copyBinary("templates/addons/amps/share-site-creators-repo-0.0.8.amp",
+			"alfresco/modules/amps/share-site-creators-repo-0.0.8.amp"); err != nil {
+			return fmt.Errorf("copy Share Site Creators repository addon: %w", err)
+		}
+		if err := copyBinary("templates/addons/amps_share/share-site-creators-share-0.0.8.amp",
+			"share/modules/amps/share-site-creators-share-0.0.8.amp"); err != nil {
+			return fmt.Errorf("copy Share Site Creators share addon: %w", err)
+		}
+	}
+	if slices.Contains(cfg.Addons, "share-site-space-templates") {
+		if err := copyBinary("templates/addons/amps/share-site-space-templates-repo-1.1.4-SNAPSHOT.amp",
+			"alfresco/modules/amps/share-site-space-templates-repo-1.1.4-SNAPSHOT.amp"); err != nil {
+			return fmt.Errorf("copy Share Site Space Templates repository addon: %w", err)
+		}
+	}
+	if slices.Contains(cfg.Addons, "esign-cert") {
+		if err := copyBinary("templates/addons/amps/esign-cert-repo-1.8.4.amp",
+			"alfresco/modules/amps/esign-cert-repo-1.8.4.amp"); err != nil {
+			return fmt.Errorf("copy eSign Cert repository addon: %w", err)
+		}
+		if err := copyBinary("templates/addons/amps_share/esign-cert-share-1.8.4.amp",
+			"share/modules/amps/esign-cert-share-1.8.4.amp"); err != nil {
+			return fmt.Errorf("copy eSign Cert share addon: %w", err)
+		}
+	}
+	if slices.Contains(cfg.Addons, "share-online-edition") {
+		if err := copyBinary("templates/addons/amps_share/zk-libreoffice-addon-share.amp",
+			"share/modules/amps/zk-libreoffice-addon-share.amp"); err != nil {
+			return fmt.Errorf("copy Share Online Edition share addon: %w", err)
+		}
+	}
 
 	return nil
 }
