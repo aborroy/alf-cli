@@ -14,31 +14,98 @@ type Option struct {
 
 func (o Option) String() string {
 	if o.Description != "" {
-		return fmt.Sprintf("%s - %s", o.Code, o.Description)
+		return fmt.Sprintf("%s — %s", o.Code, o.Description)
 	}
 	return o.Code
 }
 
-type compactModel struct {
-	title         string
-	options       []Option
-	selected      int
-	selectedItems map[int]bool
-	multiSelect   bool
-	choices       []Option
-	quitting      bool
+// RunSelector: single-select over []string; final frame prints "✔ <value>".
+func RunSelector(prompt string, opts []string) (string, error) {
+	options := make([]Option, len(opts))
+	for i, s := range opts {
+		options[i] = Option{Code: s}
+	}
+	selected, err := RunSelectorWithOptions(prompt, options, false)
+	if err != nil {
+		return "", err
+	}
+	return selected[0].Code, nil
 }
 
-func (m compactModel) Init() tea.Cmd {
-	return nil
+// RunMultiSelector: multi-select over []string; final frame prints "✔ a, b, c".
+func RunMultiSelector(prompt string, opts []string) ([]string, error) {
+	options := make([]Option, len(opts))
+	for i, s := range opts {
+		options[i] = Option{Code: s}
+	}
+	selected, err := RunSelectorWithOptions(prompt, options, true)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(selected))
+	for i, o := range selected {
+		out[i] = o.Code
+	}
+	return out, nil
 }
 
-func (m compactModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// RunSelectorWithOptions: core single/multi implementation with transcript-preserving summary.
+func RunSelectorWithOptions(prompt string, opts []Option, multiSelect bool) ([]Option, error) {
+	m := listModel{
+		prompt:      prompt,
+		options:     opts,
+		selected:    0,
+		multi:       multiSelect,
+		picked:      make(map[int]bool),
+		lineHelp:    "",
+		visibleSize: 12,
+	}
+	if multiSelect {
+		m.lineHelp = "Space: toggle • Enter: finish • Ctrl+A: all • Ctrl+D: none"
+	} else {
+		m.lineHelp = "↑/↓ to move • Enter to select"
+	}
+
+	p := tea.NewProgram(m)
+	res, err := p.Run()
+	if err != nil {
+		return nil, err
+	}
+	final := res.(listModel)
+
+	if final.multi {
+		var out []Option
+		for i := range final.options {
+			if final.picked[i] {
+				out = append(out, final.options[i])
+			}
+		}
+		return out, nil
+	}
+	return []Option{final.options[final.selected]}, nil
+}
+
+type listModel struct {
+	prompt      string
+	options     []Option
+	selected    int
+	multi       bool
+	picked      map[int]bool
+	done        bool
+	summary     string
+	lineHelp    string
+	visibleSize int
+	offset      int
+}
+
+func (m listModel) Init() tea.Cmd { return nil }
+
+func (m listModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c":
-			m.quitting = true
+		case "ctrl+c", "esc":
+			m.done = true
 			return m, tea.Quit
 		case "up", "k":
 			if m.selected > 0 {
@@ -48,153 +115,87 @@ func (m compactModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.selected < len(m.options)-1 {
 				m.selected++
 			}
-		case "enter":
-			if m.multiSelect {
-				if m.selectedItems[m.selected] {
-					delete(m.selectedItems, m.selected)
-				} else {
-					m.selectedItems[m.selected] = true
-				}
-			} else {
-				m.choices = []Option{m.options[m.selected]}
-				return m, tea.Quit
-			}
 		case " ", "space":
-			if m.multiSelect {
-				if m.selectedItems[m.selected] {
-					delete(m.selectedItems, m.selected)
-				} else {
-					m.selectedItems[m.selected] = true
-				}
+			if m.multi {
+				m.picked[m.selected] = !m.picked[m.selected]
 			}
 		case "ctrl+a":
-			if m.multiSelect {
+			if m.multi {
 				for i := range m.options {
-					m.selectedItems[i] = true
+					m.picked[i] = true
 				}
 			}
 		case "ctrl+d":
-			if m.multiSelect {
-				m.selectedItems = make(map[int]bool)
+			if m.multi {
+				m.picked = make(map[int]bool)
 			}
-		case "tab", "ctrl+m":
-			if m.multiSelect {
-				var selected []Option
+		case "enter":
+			if m.multi {
+				var vals []string
 				for i := range m.options {
-					if m.selectedItems[i] {
-						selected = append(selected, m.options[i])
+					if m.picked[i] {
+						vals = append(vals, m.options[i].Code)
 					}
 				}
-				m.choices = selected
-				return m, tea.Quit
+				valsText := "(none)"
+				if len(vals) > 0 {
+					valsText = strings.Join(vals, ", ")
+				}
+				m.summary = fmt.Sprintf("%s: %s", m.prompt, valsText)
+			} else {
+				m.summary = fmt.Sprintf("%s: %s", m.prompt, m.options[m.selected].Code)
 			}
+			m.done = true
+			return m, tea.Quit
 		}
+	}
+
+	// Simple scroll window
+	if m.selected < m.offset {
+		m.offset = m.selected
+	}
+	if m.selected >= m.offset+m.visibleSize {
+		m.offset = m.selected - m.visibleSize + 1
 	}
 	return m, nil
 }
 
-func (m compactModel) View() string {
+func (m listModel) View() string {
+	if m.done {
+		return m.summary + "\n"
+	}
+
 	var b strings.Builder
+	fmt.Fprintf(&b, "%s\n\n", m.prompt)
 
-	b.WriteString(titleStyle.Render(m.title))
-
-	if m.multiSelect {
-		b.WriteString("\n")
-		help := "Space/Enter: toggle, Tab: finish, Ctrl+A: select all, Ctrl+D: deselect all"
-		b.WriteString(helpStyle.Render(help))
-		b.WriteString("\n")
-	} else {
-		b.WriteString("\n")
+	start := m.offset
+	end := start + m.visibleSize
+	if end > len(m.options) {
+		end = len(m.options)
 	}
 
-	for i, option := range m.options {
-		var line string
-		prefix := " "
-
-		if m.multiSelect {
-			if m.selectedItems[i] {
-				prefix = "✓"
-			} else {
-				prefix = "○"
-			}
-		}
-
+	for i := start; i < end; i++ {
+		cursor := "  "
 		if i == m.selected {
-			if m.multiSelect && m.selectedItems[i] {
-				line = selectedItemStyle.Render(fmt.Sprintf("%s %d. %s",
-					checkedStyle.Render(prefix), i+1, option.String()))
-			} else {
-				line = selectedItemStyle.Render(fmt.Sprintf("> %s %d. %s",
-					prefix, i+1, option.String()))
+			cursor = "> "
+		}
+		if m.multi {
+			box := "[ ] "
+			if m.picked[i] {
+				box = "[x] "
 			}
+			fmt.Fprintf(&b, "%s%s%s\n", cursor, box, m.options[i].String())
 		} else {
-			if m.multiSelect && m.selectedItems[i] {
-				line = checkedStyle.Render(fmt.Sprintf("  %s %d. %s",
-					prefix, i+1, option.String()))
-			} else {
-				line = itemStyle.Render(fmt.Sprintf("  %s %d. %s",
-					prefix, i+1, option.String()))
-			}
-		}
-
-		b.WriteString(line)
-		if i < len(m.options)-1 {
-			b.WriteString("\n")
+			fmt.Fprintf(&b, "%s%s\n", cursor, m.options[i].String())
 		}
 	}
 
+	if end < len(m.options) {
+		fmt.Fprintf(&b, "  … %d more\n", len(m.options)-end)
+	}
+
+	if m.lineHelp != "" {
+		fmt.Fprintf(&b, "\n%s\n", m.lineHelp)
+	}
 	return b.String()
-}
-
-func RunSelector(prompt string, opts []string) (string, error) {
-	options := make([]Option, len(opts))
-	for i, opt := range opts {
-		options[i] = Option{Code: opt}
-	}
-
-	selected, err := RunSelectorWithOptions(prompt, options, false)
-	if err != nil {
-		return "", err
-	}
-
-	if len(selected) > 0 {
-		return selected[0].Code, nil
-	}
-	return "", nil
-}
-
-func RunSelectorWithOptions(prompt string, opts []Option, multiSelect bool) ([]Option, error) {
-	m := compactModel{
-		title:         prompt,
-		options:       opts,
-		multiSelect:   multiSelect,
-		selectedItems: make(map[int]bool),
-	}
-
-	p := tea.NewProgram(m)
-	result, err := p.Run()
-	if err != nil {
-		return nil, err
-	}
-
-	final := result.(compactModel)
-	return final.choices, nil
-}
-
-func RunMultiSelector(prompt string, opts []string) ([]string, error) {
-	options := make([]Option, len(opts))
-	for i, opt := range opts {
-		options[i] = Option{Code: opt}
-	}
-
-	selected, err := RunSelectorWithOptions(prompt, options, true)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]string, len(selected))
-	for i, opt := range selected {
-		result[i] = opt.Code
-	}
-	return result, nil
 }

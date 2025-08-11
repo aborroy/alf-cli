@@ -1,95 +1,86 @@
 package selector
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type passwordModel struct {
-	input          textinput.Model
-	quitting       bool
-	defaultCleared bool
+// RunPasswordInput prompts for a password (masked). If default is provided and user
+// presses Enter, we accept it; final frame prints "<prompt>: ********".
+func RunPasswordInput(prompt, defaultValue string) (string, error) {
+	ti := textinput.New()
+	ti.Focus()
+	ti.Prompt = prompt + ": "
+	ti.EchoMode = textinput.EchoPassword
+	ti.EchoCharacter = '•'
+	ti.SetValue(defaultValue) // Enter accepts default; masked during edit
+
+	m := passwordModel{
+		prompt: prompt,
+		input:  ti,
+		def:    defaultValue,
+		dirty:  false,
+	}
+
+	p := tea.NewProgram(m)
+	res, err := p.Run()
+	if err != nil {
+		return "", err
+	}
+	final := res.(passwordModel)
+
+	v := final.input.Value()
+	if v == "" {
+		v = defaultValue
+	}
+	return v, nil
 }
 
-func (m passwordModel) Init() tea.Cmd {
-	return textinput.Blink
+type passwordModel struct {
+	prompt string
+	input  textinput.Model
+	def    string
+	dirty  bool
+	done   bool
+	final  string
 }
+
+func (m passwordModel) Init() tea.Cmd { return textinput.Blink }
 
 func (m passwordModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
-			m.quitting = true
+			m.done = true
 			return m, tea.Quit
 		case "enter":
-			return m, tea.Quit
-		}
-
-		if !m.defaultCleared {
-			// Only process printable characters
-			if len(msg.String()) == 1 && msg.Type == tea.KeyRunes {
-				// Clear input and switch to password mode
-				m.input.SetValue("")
-				m.input.EchoMode = textinput.EchoPassword
-				m.input.EchoCharacter = '•'
-				m.defaultCleared = true
-
-				// Re-send the same key as new input
-				// (this ensures only the typed char is inserted)
-				var cmd tea.Cmd
-				m.input, cmd = m.input.Update(msg)
-				return m, cmd
+			val := m.input.Value()
+			if val == "" {
+				val = m.def
 			}
-			// Ignore other non-character keys until the user types a letter
-			return m, nil
+			m.final = fmt.Sprintf("%s: %s", m.prompt, strings.Repeat("•", len(val)))
+			m.done = true
+			return m, tea.Quit
+		default:
+			// First printable char clears default so you start fresh.
+			if !m.dirty && len(msg.String()) == 1 {
+				m.input.SetValue("")
+				m.dirty = true
+			}
 		}
 	}
-
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	return m, cmd
 }
 
 func (m passwordModel) View() string {
-	if m.quitting {
-		return ""
+	if m.done {
+		return m.final + "\n"
 	}
-	return passwordPromptStyle.Render(m.input.View()) + "\n"
-}
-
-func RunPasswordInput(prompt, defaultValue string) (string, error) {
-	for {
-		ti := textinput.New()
-		ti.Placeholder = ""
-		ti.Focus()
-		ti.CharLimit = 256
-		ti.Width = 40
-		ti.PromptStyle = titleStyle
-		ti.Prompt = prompt + ": "
-
-		if defaultValue != "" {
-			ti.SetValue(defaultValue)
-			ti.EchoMode = textinput.EchoNormal // show the default in clear
-		} else {
-			ti.EchoMode = textinput.EchoPassword
-			ti.EchoCharacter = '•'
-		}
-
-		p := tea.NewProgram(passwordModel{input: ti})
-		m, err := p.Run()
-		if err != nil {
-			return "", err
-		}
-
-		value := m.(passwordModel).input.Value()
-		if value != "" {
-			return value, nil
-		}
-		if defaultValue != "" {
-			return defaultValue, nil
-		}
-
-		prompt = "\tPassword (cannot be empty)"
-	}
+	return m.input.View()
 }

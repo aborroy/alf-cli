@@ -5,99 +5,12 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
-type compactYNModel struct {
-	title      string
-	options    []string
-	selected   int
-	choice     bool
-	quitting   bool
-	defaultIdx int
-	width      int
-}
-
-func (m compactYNModel) Init() tea.Cmd {
-	return nil
-}
-
-func (m compactYNModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
-			m.quitting = true
-			return m, tea.Quit
-
-		case "left", "h":
-			if m.selected > 0 {
-				m.selected--
-			}
-
-		case "right", "l":
-			if m.selected < len(m.options)-1 {
-				m.selected++
-			}
-
-		case "y", "Y":
-			m.selected = 0
-			m.choice = true
-			return m, tea.Quit
-
-		case "n", "N":
-			m.selected = 1
-			m.choice = false
-			return m, tea.Quit
-
-		case "enter":
-			m.choice = (m.selected == 0)
-			return m, tea.Quit
-
-		case "esc":
-			m.selected = m.defaultIdx
-			m.choice = (m.defaultIdx == 0)
-			return m, tea.Quit
-		}
-	}
-	return m, nil
-}
-
-func (m compactYNModel) View() string {
-	var b strings.Builder
-
-	b.WriteString(titleStyle.Render(m.title))
-	b.WriteString(" ")
-
-	for i, option := range m.options {
-		if i == m.selected {
-			formatted := fmt.Sprintf("[%s]", option)
-			if i == m.defaultIdx {
-				formatted = fmt.Sprintf("[%s*]", option)
-			}
-			b.WriteString(selectedBooleanStyle.Render(formatted))
-		} else {
-			formatted := option
-			if i == m.defaultIdx {
-				formatted = fmt.Sprintf("%s*", option)
-			}
-			b.WriteString(booleanStyle.Render(formatted))
-		}
-
-		if i < len(m.options)-1 {
-			b.WriteString(booleanStyle.Render(" / "))
-		}
-	}
-
-	return lipgloss.NewStyle().Width(m.width).Render(b.String()) + "\n"
-}
-
-func RunYesNoSelector(prompt string, defaultValue bool) (bool, error) {
+// RunYesNoSelector shows a compact Yes/No selector that keeps a running transcript.
+func RunYesNoSelector(prompt string, defaultYes bool) (bool, error) {
 	defaultIdx := 0
-	if !defaultValue {
+	if !defaultYes {
 		defaultIdx = 1
 	}
 
@@ -109,11 +22,67 @@ func RunYesNoSelector(prompt string, defaultValue bool) (bool, error) {
 	}
 
 	p := tea.NewProgram(m)
-	result, err := p.Run()
+	res, err := p.Run()
 	if err != nil {
 		return false, err
 	}
-
-	final := result.(compactYNModel)
+	final := res.(compactYNModel)
 	return final.choice, nil
+}
+
+type compactYNModel struct {
+	title      string
+	options    []string
+	selected   int
+	defaultIdx int
+	choice     bool
+	done       bool
+}
+
+func (m compactYNModel) Init() tea.Cmd { return nil }
+
+func (m compactYNModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "esc":
+			m.done = true
+			return m, tea.Quit
+		case "up", "k":
+			if m.selected > 0 {
+				m.selected--
+			}
+		case "down", "j":
+			if m.selected < len(m.options)-1 {
+				m.selected++
+			}
+		case "enter":
+			m.choice = (m.selected == 0)
+			m.done = true
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
+func (m compactYNModel) View() string {
+	if m.done {
+		ans := "No"
+		if m.choice {
+			ans = "Yes"
+		}
+		return fmt.Sprintf("%s: %s\n", m.title, ans)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s\n\n", m.title)
+	for i, opt := range m.options {
+		cursor := "  "
+		if i == m.selected {
+			cursor = "> "
+		}
+		fmt.Fprintf(&b, "%s%s\n", cursor, opt)
+	}
+	fmt.Fprintln(&b, "\n↑/↓ to move • Enter to select")
+	return b.String()
 }
