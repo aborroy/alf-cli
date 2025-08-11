@@ -26,7 +26,7 @@ services:
   {{- if .UseDockerVolume }}    
       - postgres-data:/var/lib/postgresql/data
   {{- else }}
-      - ./data/postgres:/var/lib/postgresql/data
+      - ./data/postgres-data:/var/lib/postgresql/data
   {{- end }}
 {{- end }}
 {{- if eq .Database "mariadb" }}
@@ -61,7 +61,7 @@ services:
   {{- if .UseDockerVolume }}    
         - mariadb-data:/var/lib/mysql
   {{- else }}
-        - ./data/mariadb:/var/lib/mysql 
+        - ./data/mariadb-data:/var/lib/mysql 
   {{- end}}
 {{- end }}
 
@@ -96,7 +96,7 @@ services:
   {{- if .UseDockerVolume }}
       - activemq-data:/opt/activemq/data
   {{- else }}
-      - ./data/activemq:/opt/activemq/data
+      - ./data/activemq-data:/opt/activemq/data
   {{- end }}
 {{- end }}
   
@@ -305,7 +305,7 @@ services:
 {{- if .UseDockerVolume }}    
       - alf-repo-data:/usr/local/tomcat/alf_data
 {{- else }}
-      - ./data/alfresco:/usr/local/tomcat/alf_data
+      - ./data/alf-repo-data:/usr/local/tomcat/alf_data
 {{- end }}
 {{- if eq .Database "mariadb" }}
       - ./libs/mariadb-java-client-2.7.4.jar:/usr/local/tomcat/webapps/alfresco/WEB-INF/lib/mariadb-java-client-2.7.4.jar
@@ -385,7 +385,7 @@ services:
 {{- if .UseDockerVolume }}    
       - solr-data:/opt/alfresco-search-services/data
 {{- else }}
-      - ./data/solr:/opt/alfresco-search-services/data
+      - ./data/solr-data:/opt/alfresco-search-services/data
 {{- end }}
 {{- if eq .SolrComm "https" }}
       - ./keystores/solr:/opt/alfresco-search-services/keystore

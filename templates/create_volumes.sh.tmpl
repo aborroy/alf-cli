@@ -1,14 +1,24 @@
 #!/usr/bin/env bash
+set -e
 
+# Detect current user even when running with sudo
+USER_ID="${SUDO_UID:-$(id -u)}"
+GROUP_ID="${SUDO_GID:-$(id -g)}"
+
+# Create main data folder owned by the current user
+mkdir -p ./data
+chown "$USER_ID:$GROUP_ID" ./data
+
+# Subfolders with container-specific ownership
 mkdir -p ./data/alf-repo-data
-chown -R 33000 data/alf-repo-data
+chown -R 33000:33000 data/alf-repo-data
 
 mkdir -p ./data/solr-data
-chown 33007 ./data/solr-data
+chown 33007:33007 ./data/solr-data
 
 {{ if eq .Database "postgres" }}
 mkdir -p ./data/postgres-data
-chown 999 ./data/postgres-data
+chown 999:999 ./data/postgres-data
 {{- else }}
 mkdir -p ./data/mariadb-data
 chown 999 ./data/mariadb-data
@@ -16,5 +26,5 @@ chown 999 ./data/mariadb-data
 
 {{ if .UseActiveMQ }}
 mkdir -p ./data/activemq-data
-chown -R 33031 data/activemq-data
+chown -R 33031:33031 data/activemq-data
 {{- end }}
