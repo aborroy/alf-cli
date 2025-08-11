@@ -36,7 +36,7 @@ If you spin up ACS regularly—for demos, labs, PoCs, or local dev, you know the
 
 Download the binary compiled for your architecture (Linux, Windows or Mac OS) from [Releases](https://github.com/aborroy/alf-cli/releases).
 
-You may rename the binary to `alfresco`, all the following samples are using this command name by default.
+You may rename the binary to `alf`, all the following samples are using this command name by default.
 
 Using `-h` flag provides detail on the use of the different commands available.
 
@@ -45,7 +45,7 @@ Using `-h` flag provides detail on the use of the different commands available.
 This creates a new folder with a complete Compose workspace.
 
 ```bash
-alfresco docker-compose
+alf docker-compose
 ```
 
 You’ll be prompted for:
@@ -82,13 +82,13 @@ docker compose logs -f alfresco
 Every prompt has a corresponding flag so you can script it. See built‑in help:
 
 ```bash
-alfresco docker-compose --help
+alf docker-compose --help
 ```
 
 **Example** (illustrative; adjust flags to match `--help`):
 
 ```bash
-alfresco docker-compose \
+alf docker-compose \
   --version 25.1 \
   --https=false \
   --server localhost \
